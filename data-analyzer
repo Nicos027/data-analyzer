@@ -1,0 +1,421 @@
+//
+//  main.cpp
+//  Data Analyzer
+//
+//  Created by Nicos Eftychiou on 4/12/24.
+//
+
+#include <iostream>
+#include <ctime>
+#include <string>
+#include <fstream>
+#include <vector>
+#include <algorithm>
+
+using namespace std;
+
+
+
+void writeData(string filename, int* values, int length)
+{
+    ofstream out_file;
+    out_file.open(filename);
+    if (out_file.is_open())
+    {
+        out_file << length << endl;
+        for (int i = 0; i < length; i++)
+        {
+            out_file << values[i] << endl;
+        }
+    }
+}
+
+void createDataFile(string filename)
+{
+    int size = 1000;
+    int* array = new int[size];
+    
+    for (int i = 0; i < size; i++)
+    {
+        array[i] = rand() % 1000; // 0 to 999
+    }
+    
+    writeData(filename, array, size);
+        delete[] array;
+}
+
+// code for selection sort
+int min_position(int* a, int from, int to)
+{
+   int min_pos = from;
+   for (int i = from + 1; i <= to; i++)
+   {
+      if (a[i] < a[min_pos]) { min_pos = i; }
+   }
+   return min_pos;
+}
+
+/**
+   Swaps two integers.
+   @param x the first integer to swap
+   @param y the second integer to swap
+*/
+void swap(int& x, int& y)
+{
+   int temp = x;
+   x = y;
+   y = temp;
+}
+
+/**
+   Sorts a array using the selection sort algorithm
+   @param a the array to sort
+   @param size the number of elements in a
+*/
+void selection_sort(int* a, int size)
+{
+   int next; // The next position to be set to the minimum
+
+   for (next = 0; next < size - 1; next++)
+   {
+      // Find the position of the minimum starting at next
+      int min_pos = min_position(a, next, size - 1);
+      // Swap the next element and the minimum
+      swap(a[next], a[min_pos]);
+   }
+}
+
+class DataReader
+{
+public:
+    DataReader(const char* filename);
+    ~DataReader();
+    int* getValues();
+    int getSize ();
+    
+    
+private:
+    int* values;
+    int size;
+    void readValues(const char* filename);
+};
+
+DataReader::DataReader(const char* filename)
+{
+    readValues(filename);
+}
+
+DataReader::~DataReader()
+{
+    delete[] values;
+}
+
+void DataReader::readValues(const char* filename)
+{
+    ifstream file(filename);
+    string line;
+    
+    if (!file.is_open())
+        {
+            cout << "Error opening file." << endl;
+            values = nullptr;
+            size = 0;
+            return;
+        }
+    
+    getline(file, line);
+    size = stoi(line);
+    
+    values = new int[size];
+    
+    int i = 0;
+    while(getline(file, line) && i < size)
+    {
+        values[i] = stoi(line);
+        i++;
+    }
+}
+
+int* DataReader::getValues()
+{
+    return values;
+}
+
+int DataReader::getSize()
+{
+    return size;
+}
+
+class Analyzer
+{
+public:
+    Analyzer (int* values, int size);
+    virtual ~Analyzer();
+    virtual string analyze() = 0;
+    
+
+protected:
+    int* array;
+    int length;
+    int* cloneValues(int* values, int size);
+};
+
+Analyzer::Analyzer(int* values, int size)
+{
+    array = cloneValues(values, size);
+    length = size;
+}
+
+Analyzer::~Analyzer()
+{
+    delete[] array;
+}
+
+
+int* Analyzer::cloneValues(int* values, int size)
+{
+    int* array = new int[size];
+    for (int i = 0; i < size; i++)
+    {
+        array[i] = values[i];
+    }
+    return array;
+}
+
+class DuplicatesAnalyzer : public Analyzer
+{
+public:
+    DuplicatesAnalyzer(int* values, int size) : Analyzer(values, size) {}
+    string analyze() override;
+};
+
+string DuplicatesAnalyzer::analyze()
+{
+    sort(array, array + length); // order elements from least to greatest for duplicate checking
+    vector<int> match;
+    for (int i = 0; i < length - 1; i++) 
+        {
+            if (array[i] == array[i + 1]) 
+                {
+                // check if two elements next to each other are the same
+                match.push_back(array[i]);
+                // skip over consecutive duplicates
+                while (i < length - 1 && array[i] == array[i + 1]) 
+                {
+                    i++;
+                }
+            }
+        }
+
+    string info = "";
+    string counts = to_string(match.size());
+    for(const auto& matches : match)
+    {
+        info = info + " " + to_string(matches);
+    }
+    string data;
+    data = "There are " + counts + " duplicates. The matches are" + info;
+    return data;
+}
+
+class MissingAnalyzer : public Analyzer
+{
+public:
+    MissingAnalyzer(int* values, int size) : Analyzer(values, size) {}
+    string analyze() override;
+};
+
+string MissingAnalyzer::analyze()
+{
+    const int maxValue = 999;
+    
+    vector<bool> present(maxValue + 1, false);
+    vector<int> missers;
+    
+    for (int i = 0; i < length; i++)
+    {
+        if (array[i] >= 0 && array[i] <= maxValue)
+        {
+            present[array[i]] = true;
+        }
+    }
+    for (int i = 0; i <= maxValue; i++)
+        {
+            if (!present[i])
+            {
+                missers.push_back(i);
+            }
+        }
+    
+    
+    string info = "";
+    for (const auto& missed : missers)
+        {
+            info += " " + to_string(missed);
+        }
+
+        string data = "There are " + to_string(missers.size()) +
+                      " missing numbers. They are" + info;
+        return data;
+}
+    
+class StatisticsAnalyzer : public Analyzer
+    {
+    public:
+        StatisticsAnalyzer(int* values, int size) : Analyzer(values, size) { selection_sort(array, length);}
+        string analyze() override;
+    };
+    
+string StatisticsAnalyzer::analyze()
+{
+    double sum = 0;
+    for(int i = 0; i < length; i++)
+    {
+        sum = sum + array[i];
+    }
+    double mean = (sum/length);
+    
+    int max_value = array[0];
+    for(int i = 1; i < length; i++)
+    {
+        if(max_value < array[i])
+        {
+            max_value = array[i];
+        }
+    }
+    
+    int min_value = array[0];
+    for(int i = 1; i < length; i++)
+    {
+        if(min_value > array[i])
+        {
+            min_value = array[i];
+        }
+    }
+    
+    double median;
+    if (length % 2 == 0)
+    {
+        median = (array[length / 2 - 1] + array[length / 2]) / 2.0;
+    }
+    else
+    {
+        median = array[length / 2];
+    }
+    
+    int max_freq = 0;
+    int most_freq_element = array[0]; // Initialize with the first element
+    
+    // Count occurrences of each element
+    for (int i = 0; i < length; i++)
+    {
+        int current_freq = 1; // Frequency of current element
+        for (int j = i + 1; j < length; j++)
+        {
+            if (array[i] == array[j])
+            {
+                current_freq++;
+            }
+        }
+        if (current_freq > max_freq)
+        {
+            max_freq = current_freq;
+            most_freq_element = array[i];
+        }
+    }
+        
+        string minimum = to_string(min_value);
+        string maximum = to_string(max_value);
+        string array_mean = to_string(mean);
+        string array_median = to_string(median);
+        string mode = to_string(most_freq_element);
+        string max_frequency = to_string(max_freq);
+        
+        
+        string data = "Minimum: " + minimum + "   Maximum: " + maximum + "   Mean: " + array_mean + "   Median: " + array_median + "   Mode: " + mode + " which occurred " + max_frequency + " times.";
+        return data;
+    }
+
+bool binary_search_recursive(int* values, int key, int start, int end)
+{
+    bool found = false;
+    if (start > end)
+       {
+          found = false;
+          return found;
+       }
+
+       int mid = (start + end) / 2;
+       if (values[mid] == key)
+       {
+          found = true;
+          return found;
+       }
+       else if (values[mid] < key)
+       {
+          return binary_search_recursive(values, key, mid + 1, end);
+       }
+       else
+       {
+          return binary_search_recursive(values, key, start, mid - 1);
+       }
+}
+
+bool binary_search(int* values, int key, int size)
+{
+    return binary_search_recursive(values, key, 0, size - 1);
+}
+
+class SearchAnalyzer : public Analyzer
+{
+public:
+    SearchAnalyzer(int* values, int size) : Analyzer(values, size) { selection_sort(array, length);}
+    string analyze() override;
+};
+
+string SearchAnalyzer::analyze()
+{
+    const int store = 100;
+    int storage[store];
+    int count = 0;
+    for (int i = 0; i < store; i++)
+    {
+        storage[i] = rand() % 1000;
+    }
+        
+    for (const auto& stores : storage)
+    {
+        if (binary_search(array, stores, length))
+        {
+            count++;
+        }
+
+    }
+    string counts = "There were " + to_string(count) + " out of 100 random values found.";
+    return counts;
+
+}
+    
+
+int main(){
+    
+    srand(static_cast<unsigned int>(time(nullptr)));
+    
+    createDataFile("numbers.txt");
+    DataReader file("numbers.txt");
+    
+    DuplicatesAnalyzer analyze_file2(file.getValues(), file.getSize());
+    cout << analyze_file2.analyze() << endl << endl;
+    
+    MissingAnalyzer analyze_file3(file.getValues(), file.getSize());
+    cout << analyze_file3.analyze() << endl << endl;
+    
+    StatisticsAnalyzer analyze_file4(file.getValues(), file.getSize());
+    cout << analyze_file4.analyze() << endl << endl;
+    
+    SearchAnalyzer analyze_file5(file.getValues(), file.getSize());
+    cout << analyze_file5.analyze() << endl << endl;
+    
+    return 0;
+    
+}
